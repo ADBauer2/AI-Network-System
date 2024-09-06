@@ -1,35 +1,28 @@
+import tensorflow as tf
 import numpy as np
+from scipy.interpolate import BSpline
+from scipy import signal
 
 """
 Personal attempt at KAN implementation
 
 For experimental purposes in identifying how to fuse kans
+
+RNN-KAN mixture model
+KAN will utilize a b-spline activation function wrapped in a log-wavelet transform
+RNN used to do back-propogation and process sequential data
 """
 
+# B-Spline Layer
+class BSplineLayer(tf.keras.Layer):
+    def __init__(self, knots, degree = 3, **kwargs):
+        super(BSplineLayer, self).__init__(**kwargs)
+        self.knots = knots
+        self.degree = degree
 
-
-# Setup spline activation function
-def cubic_spline(x, knots, coefficients):
-    """
-    Evaluate a cubic spline at given x values.
-    :param x: Input value(s).
-    :param knots: List of knot points.
-    :param coefficients: Coefficients of the cubic polynomial segments.
-    :return: Evaluated spline values.
-    """
-    # Ensure x is a numpy array
-    x = np.array(x)
-    result = np.zeros_like(x)
-
-    # Find which interval each x belongs to
-    for i in range(len(knots) - 1):
-        mask = (x >= knots[i]) & (x < knots[i+1])
-        if np.any(mask):
-            x_segment = x[mask]
-            a, b, c, d = coefficients[i]
-            t = (x_segment - knots[i]) / (knots[i+1] - knots[i])
-            result[mask] = (a * t**3 + b * t**2 + c * t + d)
-    
-    return result
-
-#
+    def call(self, inputs):
+        bsplines = []
+        for i in range(inputs.shape[1]):
+            b_spline = BSpline(self.knots, inputs[:, i], self.degree)
+            bsplines.append(b_spline[inputs[:, i]])
+        return tf.convert_to_tensor(bsplines, dtype = tf.float32)
